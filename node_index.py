@@ -35,9 +35,11 @@ class Database:
 
   def getvalue(self, name):
     # print(self.database[name])
+    
     for i in range(self.index, len(self.database[name]["value"])):
-      self.cached += int(self.database[name]["value"][i])
       self.index = i
+      self.cached += int(self.database[name]["value"][i])
+    self.index = self.index + 1
     return self.cached 
 
 class Server(Thread):
@@ -267,4 +269,6 @@ print("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
   test_amount, increment, len(clients), len(clients), \
   len(clients) * test_amount * increment + len(clients) * test_amount * increment * len(clients)))
 print("Test simulation finished, getting final answers")
-client.sender.queue.put("get item\t".format(counter)) 
+for client in clients:
+  client.sender.queue.put("get item\t".format(counter)) 
+
