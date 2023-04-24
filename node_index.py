@@ -16,6 +16,7 @@ class Database:
   def __init__(self, server):
     self.database = {}
     self.server = server
+    self.versions = {}
 
   def persist(self, splitted):
     if splitted[1] not in self.database:
@@ -27,8 +28,15 @@ class Database:
       newitem["value"] = [int(splitted[2])]
       self.database[splitted[1]] = newitem
     else:
+      ancestor = splitted[3]
+      
+      self.database[splitted[1]]["value"].append(ancestor)
       self.database[splitted[1]]["value"].append(splitted[2])
     # print(self.server, self.database[splitted[1]]["value"][-1])
+
+  # def getvalue(self, name):
+  #  for backward in range(len(self.database[name]["value"] - 1, 0, -1):
+  #    if self.ancestor[name][backward - 1] - self.ancestor[name][backward - 1]:
 
 class Server(Thread):
   def __init__(self, index, port, database, clients):
