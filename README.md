@@ -1,4 +1,4 @@
-# consistent-mesh
+# eventually-consistent-mesh
 
 an attempt to create an asynchronously replicated append only performant split brain resistant mesh
 
