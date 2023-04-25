@@ -298,13 +298,13 @@ import time
 time.sleep(10)
 
 print("###########################~")
-counter = 0
+counter = 1
 last_time = time.time()
 increment = 1
 test_amount = 1000
-while counter < test_amount:
+while counter <= test_amount:
   for client in clients:
-    amount = int(args.index) * counter
+    amount = (1 + int(args.index)) * counter 
     message = "set item {}".format(amount)
     client.sender.queue.put((message,)) 
     counter = counter + 1
