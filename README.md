@@ -12,6 +12,7 @@ I thought:
 
 CAP theorem means that we sacrifice certain things for certain requirements.
 
-# conflict resolution
+# node_lww
 
+`node_lww.py` uses timestamps to resolve conflicts.
 
