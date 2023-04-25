@@ -160,9 +160,6 @@ class Server(Thread):
                               print("length of items", len(self.database.database[splitted[1]]["value"]))
                             if splitted[0] == "sync" and len(splitted) == 4:
                               self.database.persist(splitted)
-                              sync = list(splitted)
-                              sync[0] = "sync"
-                              self.database.persist(sync)
                             elif "initialized" in connections[fileno] and splitted[0] == "set" and len(splitted) == 4:
                               self.database.persist(splitted)
                               my_server_index = connections[fileno]["server_index"]
