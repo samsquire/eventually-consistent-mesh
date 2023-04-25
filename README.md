@@ -14,5 +14,7 @@ CAP theorem means that we sacrifice certain things for certain requirements.
 
 # node_lww
 
-`node_lww.py` uses timestamps to resolve conflicts.
+`node_lww.py` uses timestamps to resolve conflicts, received broadcasted data is sorted when retrieving a value, so all servers that are synchronized shall agree on a value.
+
+If there is a split brain, then a server shall report a different value for that split.
 
