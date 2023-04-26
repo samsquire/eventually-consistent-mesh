@@ -155,9 +155,15 @@ class Server(Thread):
                               connections[fileno]["server_index"] = server_index
                               connections[fileno]["initialized"] = True
                             if splitted[0] == "get" and len(splitted) == 3:
-                              print("server value")
-                              print(self.database.getvalue(splitted[1]))
+                              server_value = self.database.getvalue(splitted[1])
+                              print("server value", server_value)
                               print("length of items", len(self.database.database[splitted[1]]["value"]))
+                              # print("second to last value", self.database.database[splitted[1]]["value"][-2])
+                              for sp in self.database.database[splitted[1]]["value"]:
+                                if sp[0] == "sync" and sp[3] == server_value[3]:
+                                  for sp2 in self.database.database[splitted[1]]["value"]:
+                                    if sp2[0] == "set" and sp2[3] == server_value[3]:
+                                      print("ERROR")
                             if splitted[0] == "sync" and len(splitted) == 4:
                               self.database.persist(splitted)
                             elif "initialized" in connections[fileno] and splitted[0] == "set" and len(splitted) == 4:
@@ -166,8 +172,8 @@ class Server(Thread):
                               for client in connections.values():
                                 if "initialized" in client:
                                   server_index = client["server_index"]
-                                  if self.index != server_index:
-                                    sender = self.clients[server_index].sender
+                                  sender = self.clients[server_index].sender
+                                  if my_server_index != server_index:
                                     synced = "sync {} {}".format(splitted[1], splitted[2])
                                     sender.queue.put((synced, splitted[3]))
                         continue
@@ -270,7 +276,7 @@ clients = []
 database = Database(args.index)
 server = Server(args.index, 65432 + int(args.index), database, clients)
 server.start()
-time.sleep(5)
+time.sleep(2)
 for i in range(0, 6):
   port = 65432 + i
   sender = ClientSender(i)
@@ -295,7 +301,7 @@ for c_server in servers:
     # c_server["receiver"].start()
 
 import time
-time.sleep(10)
+time.sleep(3)
 
 print("###########################~")
 counter = 1
@@ -305,6 +311,7 @@ test_amount = 1000
 while counter <= test_amount:
   for client in clients:
     amount = (1 + int(args.index)) * counter 
+    # print(amount)
     message = "set item {}".format(amount)
     client.sender.queue.put((message,)) 
     counter = counter + 1
@@ -313,7 +320,7 @@ client.running = False
 server.running = False
 receiver.running = False
 
-time.sleep(10)
+time.sleep(5)
 print("Total counter", counter)
 print("Total clients", len(clients))
 print("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
