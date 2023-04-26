@@ -162,20 +162,19 @@ class Server(Thread):
                               for sp in self.database.database[splitted[1]]["value"]:
                                 if sp[0] == "sync" and sp[3] == server_value[3]:
                                   for sp2 in self.database.database[splitted[1]]["value"]:
-                                    if sp2[0] == "set" and sp2[3] == server_value[3]:
-                                      print("ERROR")
+                                    if sp2[0] == "set" and sp2[2] == sp[2] and sp2[3] == server_value[3]:
+                                      print("ERROR {} {}".format(sp, sp2))
                             if splitted[0] == "sync" and len(splitted) == 4:
                               self.database.persist(splitted)
                             elif "initialized" in connections[fileno] and splitted[0] == "set" and len(splitted) == 4:
                               self.database.persist(splitted)
                               my_server_index = connections[fileno]["server_index"]
-                              for client in connections.values():
-                                if "initialized" in client:
+                              for their_fileno, client in connections.items():
+                                if "initialized" in client and their_fileno != fileno:
                                   server_index = client["server_index"]
                                   sender = self.clients[server_index].sender
-                                  if my_server_index != server_index:
-                                    synced = "sync {} {}".format(splitted[1], splitted[2])
-                                    sender.queue.put((synced, splitted[3]))
+                                  synced = "sync {} {}".format(splitted[1], splitted[2])
+                                  sender.queue.put((synced, splitted[3]))
                         continue
 
         e.unregister(args[0])
@@ -310,7 +309,7 @@ increment = 1
 test_amount = 1000
 while counter <= test_amount:
   for client in clients:
-    amount = (1 + int(args.index)) * counter 
+    amount = (1 + 7 * int(args.index)) * counter 
     # print(amount)
     message = "set item {}".format(amount)
     client.sender.queue.put((message,)) 
