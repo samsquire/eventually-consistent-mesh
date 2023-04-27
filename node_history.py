@@ -64,6 +64,7 @@ class Database:
       self.hashes[splitted[3]] = val
       newitem["value"] = [val]
       self.database[splitted[1]] = newitem
+      return val
     else:
       if len(splitted) == 5:
         self.hashes[splitted[3]] = splitted
@@ -79,6 +80,7 @@ class Database:
       val.hash = splitted[3]
       val.time = splitted[4]
       heapq.heappush(self.database[splitted[1]]["value"], val)
+      return val
       # self.database[splitted[1]]["value"].sort(key=lambda x: float(x[4]))
       # self.database[splitted[1]]["value"].sort(self.sortfunc)
     # print(self.server, self.getvalue(splitted[1]))
@@ -208,19 +210,21 @@ class Server(Thread):
                               for sp in self.database.database[splitted[1]]["value"]:
                                 if sp.kind == "sync" and sp.value == server_value.value:
                                   for sp2 in self.database.database[splitted[1]]["value"]:
-                                    if sp2.kind == "set" and sp2.value == sp.value and sp2.time == server_value.time:
+                                    if sp2.kind == "set" and sp2.value == sp.value and sp2.time == sp.time:
                                       print("ERROR {} {}".format(sp, sp2))
                             if splitted[0] == "sync" and len(splitted) == 5:
                               self.database.persist(splitted)
                             elif "initialized" in connections[fileno] and splitted[0] == "set" and len(splitted) == 4:
-                              self.database.persist(splitted)
+                              val = self.database.persist(splitted)
                               my_server_index = connections[fileno]["server_index"]
                               for their_fileno, client in connections.items():
-                                if "initialized" in client and their_fileno != fileno:
-                                  server_index = client["server_index"]
-                                  sender = self.clients[server_index].sender
-                                  synced = "sync {} {} {}".format(splitted[1], splitted[2], splitted[3])
-                                  sender.queue.put((synced, splitted[4]))
+                                server_index = client["server_index"]
+                                if "initialized" in client and fileno != their_fileno:
+                                  connection_to_client = self.clients[server_index]
+                                  sender = connection_to_client.sender
+                                  if not connection_to_client.me:
+                                    synced = "sync {} {} {}".format(splitted[1], splitted[2], splitted[3])
+                                    sender.queue.put((synced, val.time))
                         continue
 
         e.unregister(args[0])
@@ -228,11 +232,11 @@ class Server(Thread):
 
 class Client(Thread):
 
-  def __init__(self, port, index, sender):
+  def __init__(self, port, i, sender):
       super(Client, self).__init__()
       self.HOST = '127.0.0.1'  # The server's hostname or IP address
       self.PORT = port        # The port used by the server
-      self.index = index
+      self.i = i
       self.sender = sender
 
   def run(self):
@@ -243,7 +247,7 @@ class Client(Thread):
           self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
           self.s.connect((self.HOST, self.PORT))
           self.s.settimeout(20)
-          message = "server {}\t".format(self.index).encode('utf8')
+          message = "server {}\t".format(self.i).encode('utf8')
           bytesl = int.to_bytes(len(message), length=8, byteorder="little")
           success = self.s.send(bytesl)
           success = self.s.send(message)
@@ -324,8 +328,12 @@ server.start()
 time.sleep(2)
 for i in range(0, 6):
   port = 65432 + i
+  me = False
+  if i == args.index:
+    me = True
   sender = ClientSender(i)
   client = Client(port, args.index, sender)
+  client.me = me
   sender.client = client
   clients.append(client) 
   
