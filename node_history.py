@@ -219,12 +219,13 @@ class Server(Thread):
                               my_server_index = connections[fileno]["server_index"]
                               for their_fileno, client in connections.items():
                                 server_index = client["server_index"]
-                                if "initialized" in client and fileno != their_fileno:
+                                if "initialized" in client:
                                   connection_to_client = self.clients[server_index]
                                   sender = connection_to_client.sender
                                   if not connection_to_client.me:
                                     synced = "sync {} {} {}".format(splitted[1], splitted[2], splitted[3])
                                     sender.queue.put((synced, val.time))
+                                
                         continue
 
         e.unregister(args[0])
@@ -327,9 +328,10 @@ server = Server(args.index, 65432 + int(args.index), database, clients)
 server.start()
 time.sleep(2)
 for i in range(0, 6):
+  print(i)
   port = 65432 + i
   me = False
-  if i == args.index:
+  if i == int(args.index):
     me = True
   sender = ClientSender(i)
   client = Client(port, args.index, sender)
