@@ -18,3 +18,6 @@ CAP theorem means that we sacrifice certain things for certain requirements.
 
 If there is a split brain, then a server shall report a different value for that split.
 
+# node_history
+
+Creates a `hash` of the data and creates a trail of the data that originated from.
