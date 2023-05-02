@@ -18,6 +18,12 @@ CAP theorem means that we sacrifice certain things for certain requirements.
 
 If there is a split brain, then a server shall report a different value for that split.
 
-# node_history
+# node_history.py
 
-Creates a `hash` of the data and creates a trail of the data that originated from.
+Creates a `hash` of the data and creates a trail of the data that originated from. I am yet to create a visualization of the trail of data.
+
+# node_bank.py
+
+Generates random `withdraw`als and `deposit` events and applies them to a balance. Every node in the cluster should agree on the final balance.
+
+The problem is that any decision based on a balance could be cancellable.
