@@ -1,0 +1,3 @@
+jepsen.etcdemo/store/**
+.vagrant
+*.log

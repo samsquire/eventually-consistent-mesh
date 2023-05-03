@@ -1,0 +1,47 @@
+- name: Ensure boto and boto3 modules are installed
+  pip:
+    name: "{{ item }}"
+  with_items:
+    - boto3
+    - botocore
+- name: jepsen security group
+  amazon.aws.ec2_security_group:
+    name: jepsen
+    description: from me
+    vpc_id: vpc-07bbb68ff6fb5a62a
+    region: eu-west-2
+    rules:
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 92.28.161.147/32
+
+- name: start a jepsen node
+  amazon.aws.ec2_instance:
+    name: "node{{item}}"
+    key_name: "vvv-sam-n550jv"
+    vpc_subnet_id: subnet-0b03558fbd0020026
+    instance_type: t2.micro
+    security_group: jepsen
+    network:
+      assign_public_ip: true
+    image_id: ami-04090f217d3b566aa
+    tags:
+      Environment: jepsen
+    region: eu-west-2
+  loop:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+
+- name: get facts
+  amazon.aws.ec2_instance_info:
+  register: instances
+
+- name: Print all available facts
+  ansible.builtin.debug:
+   msg : "{{ item['instance_id'] }}"
+  with_items: "{{ instances.instances }}"
+
