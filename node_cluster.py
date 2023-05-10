@@ -11,7 +11,15 @@ from collections import defaultdict
 parser = ArgumentParser()
 parser.add_argument("run", help="One of init, daemon, add-host")
 parser.add_argument("--index", help="index")
+parser.add_argument("--nodes-file", help="nodes file")
 args = parser.parse_args()
+def lookup_node_port(name):
+  for server in range(len(node_data)):
+    if name == node_data[server]:
+      return server
+  return -1
+node_data = open(args.nodes_file).read().split("\n")
+node_index = lookup_node_port(args.index)
 
 class Value:
   def __init__(self, identifier, kind, key, value):
@@ -147,6 +155,10 @@ class Server(Thread):
     self.port = port
     self.database = database
     self.clients = clients
+    self.running = True
+
+  def shutdown(self):
+    self.running = False
 
   def run(self):
 
@@ -164,9 +176,8 @@ class Server(Thread):
 
         e = select.epoll()
         e.register(s.fileno(), select.EPOLLIN)
-        running = True
 
-        while running:
+        while self.running:
             events = e.poll()
             for fileno, event in events:
                 if fileno == s.fileno():
@@ -249,7 +260,7 @@ class Server(Thread):
                             # print(splitted)
                             if splitted[0] == "server" and len(splitted) == 2:
                               print("received server name")
-                              server_index = int(splitted[1])
+                              server_index = int(lookup_node_port(splitted[1]))
                               connections[fileno]["server_index"] = server_index
                               connections[fileno]["initialized"] = True
                             if splitted[0] == "get" and len(splitted) == 3:
@@ -296,7 +307,7 @@ class Server(Thread):
                                 
                         continue
 
-        e.unregister(args[0])
+        e.unregister(s.fileno())
         e.close()
 
 class Client(Thread):
@@ -312,7 +323,7 @@ class Client(Thread):
       self.running = True
       while self.running:
         try:
-          print("Trying to connect to server")
+          # print("Trying to connect to server")
           self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
           self.s.connect((self.HOST, self.PORT))
           self.s.settimeout(20)
@@ -392,14 +403,16 @@ servers = [
 ]
 clients = []
 database = Database(args.index)
-server = Server(args.index, 65432 + int(args.index), database, clients)
+
+server = Server(args.index, 65432 + node_index, database, clients)
 server.start()
 time.sleep(2)
-for i in range(0, 6):
+for i in range(0, len(node_data)):
   print(i)
   port = 65432 + i
   me = False
-  if i == int(args.index):
+  
+  if i == int(node_index):
     me = True
   sender = ClientSender(i)
   client = Client(port, args.index, sender)
@@ -433,7 +446,7 @@ increment = 1
 test_amount = 50
 while counter <= test_amount:
   for client in clients:
-    amount = (1 + 7 * int(args.index)) * counter 
+    amount = (1 + 7 * int(node_index)) * counter 
     direction = ["withdraw", "deposit"][random.randrange(0, 2)]
     # print(direction)
     message = "set {} balance {}".format(direction, amount)
@@ -455,3 +468,4 @@ print("Test simulation finished, getting final answers")
 for client in clients:
   client.sender.queue.put(("get balance".format(counter),)) 
 
+server.shutdown()

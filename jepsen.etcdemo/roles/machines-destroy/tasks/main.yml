@@ -24,6 +24,7 @@
 
 - name: start a jepsen node
   amazon.aws.ec2_instance:
+    state: terminated
     name: "node{{item}}"
     key_name: "jepsen2"
     vpc_subnet_id: subnet-0b03558fbd0020026
@@ -54,11 +55,6 @@
   ansible.builtin.debug:
    msg : "{{ item['instance_id'] }}"
   with_items: "{{ instances.instances }}"
-
-- name: remove nodes file
-  file:
-    name: nodes
-    state: absent
 
 - name: create nodes file
   shell: "echo {{ item['public_dns_name'] }} >> nodes"
