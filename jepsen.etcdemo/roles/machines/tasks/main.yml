@@ -21,6 +21,26 @@
         from_port: 22
         to_port: 22
         cidr_ip: 92.28.161.147/32
+      - proto: tcp
+        from_port: 65432
+        to_port: 65432
+        group_name: jepsen
+      - proto: tcp
+        from_port: 65433
+        to_port: 65433
+        group_name: jepsen
+      - proto: tcp
+        from_port: 65434
+        to_port: 65434
+        group_name: jepsen
+      - proto: tcp
+        from_port: 65435
+        to_port: 65435
+        group_name: jepsen
+      - proto: tcp
+        from_port: 65436
+        to_port: 65436
+        group_name: jepsen
 
 - name: start a jepsen node
   amazon.aws.ec2_instance:

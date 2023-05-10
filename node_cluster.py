@@ -6,6 +6,10 @@ import queue
 import uuid
 import heapq
 
+import sys
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 from collections import defaultdict
 parser = ArgumentParser()
@@ -69,7 +73,7 @@ class Database:
     if splitted[2] not in self.database:
       self.database[splitted[2]] = {}
     saved = self.database[splitted[2]] 
-    # print(self.server, saved)
+    # eprint(self.server, saved)
     if "value" not in self.database[splitted[2]]:
       newitem = {}
       self.counter = self.counter + 1
@@ -113,7 +117,7 @@ class Database:
       return val
       # self.database[splitted[1]]["value"].sort(key=lambda x: float(x[4]))
       # self.database[splitted[1]]["value"].sort(self.sortfunc)
-    # print(self.server, self.getvalue(splitted[1]))
+    # eprint(self.server, self.getvalue(splitted[1]))
 
   def getvalue(self, name):
     balance = 0
@@ -144,27 +148,28 @@ class Database:
         balance += item.value
 
       postbalances.append(balance)
-    # print(postbalances)
+    # eprint(postbalances)
     self.cached = balance
     return balance 
 
 class Server(Thread):
-  def __init__(self, index, port, database, clients):
+  def __init__(self, address, index, port, database, clients):
     super(Server, self).__init__()
     self.index = index
     self.port = port
     self.database = database
     self.clients = clients
     self.running = True
+    self.address = address
 
   def shutdown(self):
     self.running = False
 
   def run(self):
 
-    HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
+    HOST = self.address  # Standard loopback interface address (localhost)
     PORT = self.port        # Port to listen on (non-privileged ports are > 1023)
-    print("Server listening on port {}".format(self.port))
+    eprint("Server listening on port {}".format(self.port))
     connections = {}
     filenos = {}
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -181,10 +186,10 @@ class Server(Thread):
             events = e.poll()
             for fileno, event in events:
                 if fileno == s.fileno():
-                  print("Connection to {}".format(self.port))
+                  eprint("Connection to {}".format(self.port))
                   conn, addr = s.accept()
                   conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                  print('Connection', addr)
+                  eprint('Connection', addr)
                   conn.setblocking(0)
                   fd = conn.fileno()
                   e.register(fd, select.EPOLLIN | select.EPOLLOUT)
@@ -200,7 +205,7 @@ class Server(Thread):
 
                 if fileno != s.fileno() and event & select.EPOLLOUT:
                     for data in connections[fileno]["pending_send"]:
-                        print("Sending {} to connection ".format(data, fileno))
+                        eprint("Sending {} to connection ".format(data, fileno))
                         connections[fileno]["connection"].send(data.encode())
                     connections[fileno]["pending_send"].clear()
 
@@ -209,15 +214,15 @@ class Server(Thread):
                       connections[fileno]["current_size"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_size"])
                       connections[fileno]["remaining_size"] -= len(connections[fileno]["current_size"])
                       if len(connections[fileno]["current_size"]) == 0:
-                          print("Removing connection")
+                          eprint("Removing connection")
                           connections[fileno]["connection"].close()
-                          print("{} fileno".format(fileno))
+                          eprint("{} fileno".format(fileno))
                           e.unregister(fileno)
                           del connections[fileno]
                           continue
                       connections[fileno]["size"] = connections[fileno]["size"] + connections[fileno]["current_size"]
                       if len(connections[fileno]["size"]) < 8:
-                        print("incomplete length message")
+                        eprint("incomplete length message")
 
                       if len(connections[fileno]["size"]) == 8:
                         length = int.from_bytes(connections[fileno]["size"], "little")
@@ -225,7 +230,7 @@ class Server(Thread):
                         connections[fileno]["remaining_length"] = length
                         if length > 100:
                           import sys
-                          print("extremely long message {}".format(connections[fileno]["size"]))
+                          eprint("extremely long message {}".format(connections[fileno]["size"]))
                           sys.exit(1)
                         connections[fileno]["size"] = bytes()
                         connections[fileno]["phase"] = "message"
@@ -233,8 +238,8 @@ class Server(Thread):
     
                         continue
                     if connections[fileno]["phase"] == "message":
-                      # print(length)
-                      # print("length of message is ", length)
+                      # eprint(length)
+                      # eprint("length of message is ", length)
                       connections[fileno]["current_message"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_length"])
                       connections[fileno]["remaining_length"] = connections[fileno]["remaining_length"] - len(connections[fileno]["current_message"])
                       connections[fileno]["message"] = connections[fileno]["message"] + connections[fileno]["current_message"]
@@ -244,38 +249,38 @@ class Server(Thread):
                         
                         connections[fileno]["phase"] = "wait"
                         data = connections[fileno]["message"] 
-                        # print("received a full message {}".format(data.decode('utf8')))
+                        # eprint("received a full message {}".format(data.decode('utf8')))
                         connections[fileno]["message"] = bytes()
-                        # print(data)
+                        # eprint(data)
                         lines = data.decode('utf8').split("\t")
                         lines.pop()
                         for data in lines: 
                           if data == "":
                             import sys
-                            print("error")
+                            eprint("error")
                             sys.exit(1)
                         for data in lines:
                             if not data: continue
                             splitted = data.split(" ")
-                            # print(splitted)
+                            # eprint(splitted)
                             if splitted[0] == "server" and len(splitted) == 2:
-                              print("received server name")
+                              eprint("received server name")
                               server_index = int(lookup_node_port(splitted[1]))
                               connections[fileno]["server_index"] = server_index
                               connections[fileno]["initialized"] = True
                             if splitted[0] == "get" and len(splitted) == 3:
                               server_value = self.database.getvalue(splitted[1])
-                              print("server value", server_value)
-                              print("length of items", len(self.database.database[splitted[1]]["value"]))
-                              # print("second to last value", self.database.database[splitted[1]]["value"][-2])
+                              eprint("server value", server_value)
+                              eprint("length of items", len(self.database.database[splitted[1]]["value"]))
+                              # eprint("second to last value", self.database.database[splitted[1]]["value"][-2])
                               # for sp in self.database.database[splitted[1]]["value"]:
                               #   if sp.kind == "sync" and sp.value == server_value.value:
                               #     for sp2 in self.database.database[splitted[2]]["value"]:
                               #       if sp2.kind == "set" and sp2.value == sp.value and sp2.time == sp.time:
-                              #         print("ERROR {} {}".format(sp, sp2))
+                              #         eprint("ERROR {} {}".format(sp, sp2))
                               # for item in self.database.database[splitted[1]]["value"]:
                               #  if item.cancelled:
-                              #    print(item, "was cancelled")
+                              #    eprint(item, "was cancelled")
                                
                               clone = list(self.database.database[splitted[1]]["value"])
                               f = open("./logs/{}.dot".format(args.index), "w")
@@ -312,9 +317,9 @@ class Server(Thread):
 
 class Client(Thread):
 
-  def __init__(self, port, i, sender):
+  def __init__(self, address, port, i, sender):
       super(Client, self).__init__()
-      self.HOST = '127.0.0.1'  # The server's hostname or IP address
+      self.HOST = address  # The server's hostname or IP address
       self.PORT = port        # The port used by the server
       self.i = i
       self.sender = sender
@@ -323,7 +328,7 @@ class Client(Thread):
       self.running = True
       while self.running:
         try:
-          # print("Trying to connect to server")
+          # eprint("Trying to connect to server")
           self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
           self.s.connect((self.HOST, self.PORT))
           self.s.settimeout(20)
@@ -333,7 +338,7 @@ class Client(Thread):
           success = self.s.send(message)
           self.running = not success
         except:
-          pass # print("Waiting for server {}".format(self.PORT))
+          pass # eprint("Waiting for server {}".format(self.PORT))
 
 class ClientReceiver(Thread):
   def __init__(self, client, port, database):
@@ -352,7 +357,7 @@ class ClientReceiver(Thread):
               self.running = False
           
           # splitted = data.decode('utf8').split(" ")
-          # print(splitted)
+          # eprint(splitted)
           # database.persist(splitted) 
 
         except:
@@ -375,9 +380,9 @@ class ClientSender(Thread):
           timev = time.time()
         else:
           timev = item[1]
-        # print("Sending {} to port {}".format(item, self.port))
+        # eprint("Sending {} to port {}".format(item, self.port))
         message = "{} {}\t".format(item[0], timev).encode('utf8')
-        # print(message)
+        # eprint(message)
         e = select.epoll()
         e.register(self.client.s.fileno(), select.EPOLLOUT)
         running = True
@@ -392,10 +397,10 @@ class ClientSender(Thread):
                     self.queue.task_done() 
                     running = False
       except Exception as e:
-        print(e)
+        eprint(e)
         import sys
         self.running = False
-        print("Aborting")
+        eprint("Aborting")
 
 import time
 servers = [
@@ -404,18 +409,18 @@ servers = [
 clients = []
 database = Database(args.index)
 
-server = Server(args.index, 65432 + node_index, database, clients)
+server = Server(node_data[node_index], args.index, 65432 + node_index, database, clients)
 server.start()
 time.sleep(2)
 for i in range(0, len(node_data)):
-  print(i)
+  eprint(i)
   port = 65432 + i
   me = False
   
   if i == int(node_index):
     me = True
   sender = ClientSender(i)
-  client = Client(port, args.index, sender)
+  client = Client(node_data[i], port, args.index, sender)
   client.me = me
   sender.client = client
   clients.append(client) 
@@ -439,7 +444,7 @@ for c_server in servers:
 import time
 time.sleep(3)
 import random
-print("###########################~")
+eprint("###########################~")
 counter = 1
 last_time = time.time()
 increment = 1
@@ -448,7 +453,7 @@ while counter <= test_amount:
   for client in clients:
     amount = (1 + 7 * int(node_index)) * counter 
     direction = ["withdraw", "deposit"][random.randrange(0, 2)]
-    # print(direction)
+    # eprint(direction)
     message = "set {} balance {}".format(direction, amount)
     client.sender.queue.put((message,)) 
     counter = counter + 1
@@ -458,13 +463,13 @@ server.running = False
 receiver.running = False
 
 time.sleep(5)
-print("Total counter", counter)
-print("Total clients", len(clients))
-print("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
+eprint("Total counter", counter)
+eprint("Total clients", len(clients))
+eprint("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
   test_amount, increment, len(clients), \
   test_amount, increment, len(clients), len(clients), \
   len(clients) * test_amount * increment + len(clients) * test_amount * increment * len(clients)))
-print("Test simulation finished, getting final answers")
+eprint("Test simulation finished, getting final answers")
 for client in clients:
   client.sender.queue.put(("get balance".format(counter),)) 
 

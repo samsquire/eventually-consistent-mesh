@@ -28,19 +28,18 @@
       (c/exec ["mkdir", "-p", "/tmp/ecm"])
       (c/upload "../node_cluster.py" "/tmp/ecm")
       (c/upload "nodes" "/tmp/ecm")
-       (c/su 
-       (cu/start-daemon!
+      (c/su
+      (cu/start-daemon!
           {:logfile logfile
-           :pidfile pidfile
            :chdir   dir
-           :background false}
-       binary
-       "/tmp/ecm/node_cluster.py"
+           :background? true}
+       binary  
+       :node_cluster.py
        :run
        :--index
        node
        :--nodes-file
-       "/tmp/ecm/nodes"))
+       :nodes))
        (Thread/sleep 5000))
     
 

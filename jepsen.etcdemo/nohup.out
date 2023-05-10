@@ -1,0 +1,7 @@
+Wed 10 May 18:20:28 BST 2023
+time: cannot run 300: No such file or directory
+Command exited with non-zero status 127
+0.00user 0.00system 0:00.00elapsed 82%CPU (0avgtext+0avgdata 960maxresident)k
+0inputs+8outputs (0major+38minor)pagefaults 0swaps
+0.00user 0.00system 0:05.00elapsed 0%CPU (0avgtext+0avgdata 2040maxresident)k
+0inputs+0outputs (0major+88minor)pagefaults 0swaps
