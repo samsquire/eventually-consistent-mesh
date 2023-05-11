@@ -212,6 +212,7 @@ class Server(Thread):
                 if fileno != s.fileno() and event & select.EPOLLIN:
                     if connections[fileno]["phase"] == "wait":
                       connections[fileno]["current_size"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_size"])
+                      eprint("RECEIVED", connections[fileno]["current_size"])
                       connections[fileno]["remaining_size"] -= len(connections[fileno]["current_size"])
                       if len(connections[fileno]["current_size"]) == 0:
                           eprint("Removing connection")
@@ -225,7 +226,8 @@ class Server(Thread):
                         eprint("incomplete length message")
 
                       if len(connections[fileno]["size"]) == 8:
-                        length = int.from_bytes(connections[fileno]["size"], "little")
+                        length = int.from_bytes(connections[fileno]["size"], "big")
+                        eprint("received", length, "bytes")
                         connections[fileno]["length"] = length
                         connections[fileno]["remaining_length"] = length
                         if length > 100:
@@ -264,7 +266,7 @@ class Server(Thread):
                             splitted = data.split(" ")
                             # eprint(splitted)
                             if splitted[0] == "server" and len(splitted) == 2:
-                              eprint("received server name")
+                              eprint("received server name {}".format(splitted[1]))
                               server_index = int(lookup_node_port(splitted[1]))
                               connections[fileno]["server_index"] = server_index
                               connections[fileno]["initialized"] = True
@@ -333,7 +335,7 @@ class Client(Thread):
           self.s.connect((self.HOST, self.PORT))
           self.s.settimeout(20)
           message = "server {}\t".format(self.i).encode('utf8')
-          bytesl = int.to_bytes(len(message), length=8, byteorder="little")
+          bytesl = int.to_bytes(len(message), length=8, byteorder="big")
           success = self.s.send(bytesl)
           success = self.s.send(message)
           self.running = not success
@@ -386,7 +388,7 @@ class ClientSender(Thread):
         e = select.epoll()
         e.register(self.client.s.fileno(), select.EPOLLOUT)
         running = True
-        queue = [message, int.to_bytes(len(message), length=8, byteorder="little")]
+        queue = [message, int.to_bytes(len(message), length=8, byteorder="big")]
         while running:
             events = e.poll()
             for fileno, event in events:
@@ -473,4 +475,4 @@ eprint("Test simulation finished, getting final answers")
 for client in clients:
   client.sender.queue.put(("get balance".format(counter),)) 
 
-server.shutdown()
+# server.shutdown()

@@ -11,11 +11,23 @@
                     ]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]))
+(import (java.net Socket))
+(import (java.io DataInputStream DataOutputStream))
+(import (java.io BufferedInputStream BufferedInputStream))
+(import (java.io BufferedOutputStream BufferedOutputStream))
+(import (java.nio ByteBuffer ByteBuffer))
+(import (java.nio ByteOrder ByteOrder))
+(require '[clojure.string :as str])
+(require '[clojure.pprint])
 
 (def dir     "/tmp/ecm")
 (def binary "/usr/bin/python3")
 (def logfile (str dir "/ecm.log"))
 (def pidfile (str dir "/ecm.pid"))
+
+(defn r   [_ _] {:type :invoke, :f :read, :value nil})
+(defn w   [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
+(defn cas [_ _] {:type :invoke, :f :cas, :value [(rand-int 5) (rand-int 5)]})
 
 (defn db
   "eventually-consistent-mesh DB for a particular version."
@@ -40,7 +52,7 @@
        node
        :--nodes-file
        :nodes))
-       (Thread/sleep 5000))
+       (Thread/sleep 2000))
     
 
     (teardown! [_ test node]
@@ -57,32 +69,71 @@
 (defrecord Client [conn]
   client/Client
   (open! [this test node]
-    this)
+  (let [node_data (slurp "nodes") 
+     lines (str/split node_data #"\n") 
+     index (loop [i 0]
+      (let [inext (+ i 1)]
+        (if (= (nth lines i) node)
+           i
+          (if (< i (count lines))
+            (recur inext)
+            -1)
+            ))) ]
+        (def port (+ 65432 index))
+        (def command "server clientonly\t")
+        (.println *err* (str "Connecting to server " node " on port " port))
+        (def IPaddress node)
+        (let [size (ByteBuffer/allocate Long/BYTES) ]
+          (comment (.order size ByteOrder/LITTLE_ENDIAN))
+          (.rewind size) 
+          (def socket (Socket. IPaddress port))
+          (comment (.println *err* (str (.isConnected socket))))
+          (def in (BufferedInputStream. (.getInputStream socket)))
+          (def out (BufferedOutputStream. (.getOutputStream socket)))
+          (.println *err* (str size))
+          (.putLong size 0 (count command))
+           
+          (.println *err* (str "size of array is " (count (.array size))))
+          (.write out (.array size) 0 8)
+          (.write out (.getBytes command) 0 (count (.getBytes command)))
+          (.flush out)
+          (comment (def response (.readUTF in)))
+          (println "Output: " command)
+         (assoc this :in in)
+         (assoc this :socket socket)
+         (assoc this :out out))
+      ) this)
 
   (setup! [this test])
 
-  (invoke! [_ test op])
+  (invoke! [this test op])
 
   (teardown! [this test])
 
-  (close! [_ test]))
-
-(defn etcd-test
+  (close! [this test]
+  (.close (get this :socket))  
+  )
+)
+(defn ecm-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
   :concurrency, ...), constructs a test map."
   [opts]
   (merge tests/noop-test
-         {:pure-generators true}
          opts
-         {
+         {:pure-generators true
           :db (db "1")
           :client (Client. nil)
-         }))
+          :generator       (->> [r w]
+                                (gen/stagger 1)
+                                (gen/nemesis nil)
+                                (gen/time-limit 5))
+         }
+         ))
 
 (defn -main
   "Handles command line arguments. Can either run a test, or a web server for
   browsing results."
   [& args]
-  (cli/run! (cli/single-test-cmd {:test-fn etcd-test})
+  (cli/run! (cli/single-test-cmd {:test-fn ecm-test})
             args))
 
