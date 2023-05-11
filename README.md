@@ -27,3 +27,15 @@ Creates a `hash` of the data and creates a trail of the data that originated fro
 Generates random `withdraw`als and `deposit` events and applies them to a balance. Every node in the cluster should agree on the final balance.
 
 The problem is that any decision based on a balance could be cancellable.
+
+
+
+# node_cluster.py
+
+This is used by the Jepsen tests.
+
+# Jepsen tests
+
+I am working on Jepsen tests for the mesh. Currently the jepsen tests spin up 5 servers and deploy the mesh to them, then creates a connection to each server to prepare for streaming instructions.
+
+I haven't yet written code to generate read/write events. 
