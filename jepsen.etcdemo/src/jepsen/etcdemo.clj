@@ -52,7 +52,7 @@
        node
        :--nodes-file
        :nodes))
-       (Thread/sleep 2000))
+       (Thread/sleep 5000))
     
 
     (teardown! [_ test node]
@@ -81,37 +81,53 @@
             ))) ]
         (def port (+ 65432 index))
         (def command "server clientonly\t")
-        (.println *err* (str "Connecting to server " node " on port " port))
         (def IPaddress node)
         (let [size (ByteBuffer/allocate Long/BYTES) ]
-          (comment (.order size ByteOrder/LITTLE_ENDIAN))
-          (.rewind size) 
-          (def socket (Socket. IPaddress port))
-          (comment (.println *err* (str (.isConnected socket))))
-          (def in (BufferedInputStream. (.getInputStream socket)))
-          (def out (BufferedOutputStream. (.getOutputStream socket)))
-          (.println *err* (str size))
-          (.putLong size 0 (count command))
-           
-          (.println *err* (str "size of array is " (count (.array size))))
-          (.write out (.array size) 0 8)
-          (.write out (.getBytes command) 0 (count (.getBytes command)))
-          (.flush out)
-          (comment (def response (.readUTF in)))
-          (println "Output: " command)
-         (assoc this :in in)
-         (assoc this :socket socket)
-         (assoc this :out out))
+          (loop [] 
+            (when (try
+            
+              (.println *err* (str "Connecting to server " node " on port " port))
+              (comment (.order size ByteOrder/LITTLE_ENDIAN))
+              (.rewind size) 
+              (def socket (Socket. IPaddress port))
+              (comment (.println *err* (str (.isConnected socket))))
+              (def in (BufferedInputStream. (.getInputStream socket)))
+              (def out (BufferedOutputStream. (.getOutputStream socket)))
+              (.println *err* (str size))
+              (.putLong size 0 (count command))
+               
+              (.println *err* (str "size of array is " (count (.array size))))
+              (.write out (.array size) 0 8)
+              (.write out (.getBytes command) 0 (count (.getBytes command)))
+              (.flush out)
+              (comment (def response (.readUTF in)))
+              (println "Output: " command)
+             (assoc this :in in)
+             (assoc this :socket socket)
+             (assoc this :out out)
+             false 
+         (catch Exception e
+          (.println *err* (str e))
+          true 
+         )
+          )
+         (recur)
+          )))
       ) this)
 
   (setup! [this test])
 
-  (invoke! [this test op])
+  (invoke! [this test op]
+      (case (:f op)
+        :read (assoc op :type :ok, :value 0
+        
+
+    )))
 
   (teardown! [this test])
 
   (close! [this test]
-  (.close (get this :socket))  
+  (.close (this :socket))  
   )
 )
 (defn ecm-test
@@ -126,7 +142,7 @@
           :generator       (->> [r w]
                                 (gen/stagger 1)
                                 (gen/nemesis nil)
-                                (gen/time-limit 5))
+                                (gen/time-limit 15))
          }
          ))
 

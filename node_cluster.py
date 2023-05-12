@@ -169,7 +169,7 @@ class Server(Thread):
 
     HOST = self.address  # Standard loopback interface address (localhost)
     PORT = self.port        # Port to listen on (non-privileged ports are > 1023)
-    eprint("Server listening on port {}".format(self.port))
+    eprint("Server listening {} on port {}".format(self.address, self.port))
     connections = {}
     filenos = {}
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -267,9 +267,14 @@ class Server(Thread):
                             # eprint(splitted)
                             if splitted[0] == "server" and len(splitted) == 2:
                               eprint("received server name {}".format(splitted[1]))
-                              server_index = int(lookup_node_port(splitted[1]))
-                              connections[fileno]["server_index"] = server_index
-                              connections[fileno]["initialized"] = True
+                              if splitted[1] == "clientonly":
+                                server_index = -1
+                                connections[fileno]["server_index"] = server_index
+                                connections[fileno]["initialized"] = True
+                              else:
+                                server_index = int(lookup_node_port(splitted[1]))
+                                connections[fileno]["server_index"] = server_index
+                                connections[fileno]["initialized"] = True
                             if splitted[0] == "get" and len(splitted) == 3:
                               server_value = self.database.getvalue(splitted[1])
                               eprint("server value", server_value)
@@ -305,6 +310,8 @@ class Server(Thread):
                               my_server_index = connections[fileno]["server_index"]
                               for their_fileno, client in connections.items():
                                 server_index = client["server_index"]
+                                if server_index == -1:
+                                  continue 
                                 if "initialized" in client:
                                   connection_to_client = self.clients[server_index]
                                   sender = connection_to_client.sender
