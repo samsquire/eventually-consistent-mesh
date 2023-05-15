@@ -134,7 +134,7 @@ class Database:
   def getlatest(self, name):
     balance = 0
     if len(self.database[name]["value"]) == 0:
-      return 999999999999
+      return 999
     items = []
     clone = list(self.database[name]["value"])
     return heapq.heappop(clone).value

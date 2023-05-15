@@ -4,6 +4,7 @@
             [knossos
                     [model :as model]
                     [competition :as competition]]
+            [jepsen.checker.timeline :as timeline]
             [jepsen 
                     [checker :as checker]
                     [cli :as cli]
@@ -171,7 +172,7 @@
                   (let [response (.read in (.array responseSize) 0 8)
                         serverValue (.getLong responseSize)]
                     (.println *err* (str "Received LONG from server which is " serverValue ))
-                    (if (= 999999999999 serverValue)
+                    (if (= 999 serverValue)
                       nil
                       serverValue
                     )
@@ -201,18 +202,24 @@
          {:pure-generators true
           :db (db "1")
           :client (Client. nil)
-          :checker (checker/linearizable
+          :checker (checker/compose  {
+                        :linear (checker/linearizable
                               {:model     (model/cas-register)
                               :algorithm :linear})
+                        :timeline (timeline/html)
+                        })
           :nemesis        (nemesis/partition-random-halves)
-          :generator       (->> (gen/mix [r w])
-                          (gen/stagger 1)
-                          (gen/nemesis
-                            (cycle [(gen/sleep 5)
-                              {:type :info, :f :start}
-                              (gen/sleep 5)
-                              {:type :info, :f :stop}]))
-                          (gen/time-limit 30))
+          :generator      (gen/phases
+                           (->> (gen/mix [r w])
+                            (gen/stagger 1)
+                            (gen/nemesis
+                              (cycle [(gen/sleep 5)
+                                {:type :info, :f :start}
+                                (gen/sleep 5)
+                                {:type :info, :f :stop}]))
+                            (gen/time-limit 30))
+                         (gen/log "Waiting for quiescence")
+                            )
          }
          ))
 
