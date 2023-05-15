@@ -134,7 +134,7 @@ class Database:
   def getlatest(self, name):
     balance = 0
     if len(self.database[name]["value"]) == 0:
-      return 0
+      return 999999999999
     items = []
     clone = list(self.database[name]["value"])
     return heapq.heappop(clone).value
@@ -442,16 +442,23 @@ class ClientSender(Thread):
             for fileno, event in events:
                 if event & select.EPOLLOUT:
                   try:
-                    message_sent = self.client.s.send(queue.pop())
+                    current = queue[-1]
+                    message_sent = self.client.s.send(current)
+                    eprint(message_sent)
+                    if message_sent == len(current):
+                      queue.pop()
+                    if message_sent == -1:
+                      eprint("message failed to be sent")
+                      queue[-1] = queue[-1][message_sent:]
                     if len(queue) == 0:
                       e.unregister(self.client.s.fileno())
                       self.queue.task_done() 
                       sending = False
                   except Exception as er:
                     eprint(er)
-                    e.unregister(self.client.s.fileno())
-                    self.queue.task_done() 
-                    sending = False
+                    # e.unregister(self.client.s.fileno())
+                    # self.queue.task_done() 
+                    # sending = False
                     # self.running = False
 
 import time

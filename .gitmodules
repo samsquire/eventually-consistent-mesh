@@ -1,0 +1,3 @@
+[submodule "jepsen.etcdemo/jepsen/etcdemo/knossos"]
+	path = jepsen.etcdemo/jepsen/etcdemo/knossos
+	url = https://github.com/jepsen-io/knossos.git

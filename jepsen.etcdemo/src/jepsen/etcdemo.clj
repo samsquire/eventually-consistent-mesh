@@ -13,6 +13,7 @@
                     [client :as client]
                     [generator :as gen]
                     [tests :as tests]
+                    [nemesis :as nemesis]
                     ]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]))
@@ -170,7 +171,10 @@
                   (let [response (.read in (.array responseSize) 0 8)
                         serverValue (.getLong responseSize)]
                     (.println *err* (str "Received LONG from server which is " serverValue ))
-                    serverValue
+                    (if (= 999999999999 serverValue)
+                      nil
+                      serverValue
+                    )
                   )
               
             )
@@ -185,6 +189,9 @@
   (.close (:conn this))
   )
 )
+
+
+
 (defn ecm-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
   :concurrency, ...), constructs a test map."
@@ -197,10 +204,15 @@
           :checker (checker/linearizable
                               {:model     (model/cas-register)
                               :algorithm :linear})
+          :nemesis        (nemesis/partition-random-halves)
           :generator       (->> (gen/mix [r w])
-                                (gen/stagger 1)
-                                (gen/nemesis nil)
-                                (gen/time-limit 15))
+                          (gen/stagger 1)
+                          (gen/nemesis
+                            (cycle [(gen/sleep 5)
+                              {:type :info, :f :start}
+                              (gen/sleep 5)
+                              {:type :info, :f :stop}]))
+                          (gen/time-limit 30))
          }
          ))
 
