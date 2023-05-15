@@ -1,7 +1,12 @@
 (ns jepsen.etcdemo
   (:require [clojure.tools.logging :refer :all]
             [clojure.string :as str]
-            [jepsen [cli :as cli]
+            [knossos
+                    [model :as model]
+                    [competition :as competition]]
+            [jepsen 
+                    [checker :as checker]
+                    [cli :as cli]
                     [control :as c]
                     [db :as db]
                     [tests :as tests]
@@ -35,9 +40,14 @@
   (reify db/DB
     (setup! [_ test node]
       (info node "installing eventually-consistent-mesh" version)
-
+      (c/su 
+        (c/exec ["pkill", "-f", "python3"]))
+      (c/exec ["sudo", "apt-get", "update"])
+      (c/exec ["sudo", "apt-get", "install", "graphviz", "-y"])
       (c/exec ["sudo", "rm", "-rf", "/tmp/ecm"])
       (c/exec ["mkdir", "-p", "/tmp/ecm"])
+      (c/exec ["mkdir", "-p", "/tmp/ecm/logs"])
+      (c/exec ["mkdir", "-p", "/tmp/ecm/diagrams"])
       (c/upload "../node_cluster.py" "/tmp/ecm")
       (c/upload "nodes" "/tmp/ecm")
       (c/su
@@ -82,17 +92,18 @@
         (def port (+ 65432 index))
         (def command "server clientonly\t")
         (def IPaddress node)
-        (let [size (ByteBuffer/allocate Long/BYTES) ]
-          (loop [] 
-            (when (try
+          (->> 
+            #(try
+              (let [size (ByteBuffer/allocate Long/BYTES)
+                   socket (Socket. IPaddress port)
+                   out (BufferedOutputStream. (.getOutputStream socket))
+                   in (BufferedInputStream. (.getInputStream socket))
+                ]
             
               (.println *err* (str "Connecting to server " node " on port " port))
-              (comment (.order size ByteOrder/LITTLE_ENDIAN))
+              (.order size ByteOrder/BIG_ENDIAN)
               (.rewind size) 
-              (def socket (Socket. IPaddress port))
               (comment (.println *err* (str (.isConnected socket))))
-              (def in (BufferedInputStream. (.getInputStream socket)))
-              (def out (BufferedOutputStream. (.getOutputStream socket)))
               (.println *err* (str size))
               (.putLong size 0 (count command))
                
@@ -102,32 +113,76 @@
               (.flush out)
               (comment (def response (.readUTF in)))
               (println "Output: " command)
-             (assoc this :in in)
-             (assoc this :socket socket)
-             (assoc this :out out)
-             false 
+              (Thread/sleep 250)
+              (assoc this :conn socket :out out :in in)
+             )
          (catch Exception e
           (.println *err* (str e))
-          true 
-         )
+          (Thread/sleep 500)
+          nil 
+         ))
+         (repeatedly 5) 
+         (some identity)
           )
-         (recur)
-          )))
-      ) this)
+        
+        
+        )
+      ) 
 
   (setup! [this test])
 
   (invoke! [this test op]
       (case (:f op)
-        :read (assoc op :type :ok, :value 0
-        
+        :write (do 
+                (let [size (ByteBuffer/allocate Long/BYTES)
+                    responseSize (ByteBuffer/allocate 100) 
+                    in (:in this)
+                    out (:out this)
+                    command (str "set " (rand-nth ["withdraw" "deposit"]) " balance " (:value op) " " (System/nanoTime) "\t") ]
+                  (.order responseSize ByteOrder/BIG_ENDIAN)
+                  (.order size ByteOrder/BIG_ENDIAN)
+                  (.putLong size 0 (count command))
+                  (.write out (.array size) 0 8)
+                  (.write out (.getBytes command) 0 (count (.getBytes command)))
+                  (.flush out)
+                  (.println *err* (str "Writing to server which is " (:value op)))
+                  (.println *err* (str command))
+                  (comment (def response (.read in (.array responseSize) 8 0)))
+                  (comment (println "Output: " response))
+                  (assoc op :type :ok)
+                   
+            ))
+        :read (assoc op :type :ok, :value 
 
-    )))
+                (let [size (ByteBuffer/allocate Long/BYTES)
+                    responseSize (ByteBuffer/allocate 100) 
+                    in (:in this)
+                    out (:out this)
+                    command (str "get balance " (System/nanoTime) "\t") ]
+                  (.order responseSize ByteOrder/BIG_ENDIAN)
+                  (.order size ByteOrder/BIG_ENDIAN)
+                  (.putLong size 0 (count command))
+                  (.write out (.array size) 0 8)
+                  (.write out (.getBytes command) 0 (count (.getBytes command)))
+                  (.flush out)
+                  (comment (def response (.read in (.array responseSize) 8 0)))
+                  (comment (println "Output: " response))
+                  (let [response (.read in (.array responseSize) 0 8)
+                        serverValue (.getLong responseSize)]
+                    (.println *err* (str "Received LONG from server which is " serverValue ))
+                    serverValue
+                  )
+              
+            )
+    ))
+
+  )
 
   (teardown! [this test])
 
   (close! [this test]
-  (.close (this :socket))  
+  (.println *err* (str this))
+  (.close (:conn this))
   )
 )
 (defn ecm-test
@@ -139,7 +194,10 @@
          {:pure-generators true
           :db (db "1")
           :client (Client. nil)
-          :generator       (->> [r w]
+          :checker (checker/linearizable
+                              {:model     (model/cas-register)
+                              :algorithm :linear})
+          :generator       (->> (gen/mix [r w])
                                 (gen/stagger 1)
                                 (gen/nemesis nil)
                                 (gen/time-limit 15))

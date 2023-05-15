@@ -7,6 +7,12 @@ import uuid
 import heapq
 
 import sys
+def shutdown():
+  print("SHUT DOWN")
+
+import atexit
+
+atexit.register(shutdown)
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -51,7 +57,7 @@ class Value:
       self.cause)
 
   def __lt__(self, other):
-    return float(self.time) > float(other.time)
+    return int(self.time) > int(other.time)
 
   def descend(self):
     pass
@@ -94,18 +100,24 @@ class Database:
       self.database[splitted[2]] = newitem
       return val
     else:
-      topmost = heapq.heappop(self.database[splitted[2]]["value"])
+      topmost = None
+      if len(self.database[splitted[2]]["value"]) > 0:
+        topmost = heapq.heappop(self.database[splitted[2]]["value"])
       if len(splitted) == 6:
         self.hashes[splitted[4]] = splitted
       else:
         previous_version = topmost
-        new_hash = previous_version.hash
+        if previous_version:
+          new_hash = previous_version.hash
+        else:
+          new_hash = -1
         splitted.append(new_hash)
         temp = splitted[4]
         splitted[4] = new_hash
         splitted[5] = temp
         self.hashes[splitted[3]] = splitted
-      heapq.heappush(self.database[splitted[2]]["value"], topmost)
+      if topmost: 
+        heapq.heappush(self.database[splitted[2]]["value"], topmost)
       self.counter = self.counter + 1
       val = Value(self.counter, splitted[0], splitted[2], int(splitted[3]))
       val.hash = splitted[4]
@@ -118,6 +130,14 @@ class Database:
       # self.database[splitted[1]]["value"].sort(key=lambda x: float(x[4]))
       # self.database[splitted[1]]["value"].sort(self.sortfunc)
     # eprint(self.server, self.getvalue(splitted[1]))
+
+  def getlatest(self, name):
+    balance = 0
+    if len(self.database[name]["value"]) == 0:
+      return 0
+    items = []
+    clone = list(self.database[name]["value"])
+    return heapq.heappop(clone).value
 
   def getvalue(self, name):
     balance = 0
@@ -166,7 +186,6 @@ class Server(Thread):
     self.running = False
 
   def run(self):
-
     HOST = self.address  # Standard loopback interface address (localhost)
     PORT = self.port        # Port to listen on (non-privileged ports are > 1023)
     eprint("Server listening {} on port {}".format(self.address, self.port))
@@ -185,11 +204,12 @@ class Server(Thread):
         while self.running:
             events = e.poll()
             for fileno, event in events:
+              try:
                 if fileno == s.fileno():
-                  eprint("Connection to {}".format(self.port))
+                  # eprint("Connection to {}".format(self.port))
                   conn, addr = s.accept()
                   conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                  eprint('Connection', addr)
+                  #eprint('Connection', addr)
                   conn.setblocking(0)
                   fd = conn.fileno()
                   e.register(fd, select.EPOLLIN | select.EPOLLOUT)
@@ -200,55 +220,71 @@ class Server(Thread):
                       "phase": "wait",
                       "size": bytes(),
                       "message": bytes(),
-                      "remaining_size": 8
-                  }
+                      "remaining_size": 8,
+                      "messages": []
+                 } 
 
                 if fileno != s.fileno() and event & select.EPOLLOUT:
                     for data in connections[fileno]["pending_send"]:
                         eprint("Sending {} to connection ".format(data, fileno))
                         connections[fileno]["connection"].send(data.encode())
                     connections[fileno]["pending_send"].clear()
-
                 if fileno != s.fileno() and event & select.EPOLLIN:
                     if connections[fileno]["phase"] == "wait":
-                      connections[fileno]["current_size"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_size"])
-                      eprint("RECEIVED", connections[fileno]["current_size"])
-                      connections[fileno]["remaining_size"] -= len(connections[fileno]["current_size"])
-                      if len(connections[fileno]["current_size"]) == 0:
-                          eprint("Removing connection")
-                          connections[fileno]["connection"].close()
-                          eprint("{} fileno".format(fileno))
-                          e.unregister(fileno)
-                          del connections[fileno]
-                          continue
-                      connections[fileno]["size"] = connections[fileno]["size"] + connections[fileno]["current_size"]
-                      if len(connections[fileno]["size"]) < 8:
-                        eprint("incomplete length message")
+                      if connections[fileno]["remaining_size"] > 0:
+                        connections[fileno]["current_size"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_size"])
+                        connections[fileno]["messages"].append(connections[fileno]["current_size"])
+                        # eprint("RECEIVED", connections[fileno]["current_size"])
+                        connections[fileno]["remaining_size"] -= len(connections[fileno]["current_size"])
+                        connections[fileno]["size"] = connections[fileno]["size"] + connections[fileno]["current_size"]
+                        # eprint("size is {}".format(int.from_bytes(connections[fileno]["size"], byteorder="big")))
+                        if len(connections[fileno]["current_size"]) == 0:
+                            # eprint("Received empty length")
+                            # connections[fileno]["connection"].close()
+                            # eprint("{} fileno".format(fileno))
+                            # e.unregister(fileno)
+                            # del connections[fileno]
+                            continue
+                        if len(connections[fileno]["size"]) < 8:
+                          # eprint("incomplete length message")
+                          pass
 
-                      if len(connections[fileno]["size"]) == 8:
-                        length = int.from_bytes(connections[fileno]["size"], "big")
-                        eprint("received", length, "bytes")
-                        connections[fileno]["length"] = length
-                        connections[fileno]["remaining_length"] = length
-                        if length > 100:
-                          import sys
-                          eprint("extremely long message {}".format(connections[fileno]["size"]))
-                          sys.exit(1)
-                        connections[fileno]["size"] = bytes()
-                        connections[fileno]["phase"] = "message"
-                        connections[fileno]["remaining_size"] = 8
+                        if len(connections[fileno]["size"]) == 8:
+                          length = int.from_bytes(connections[fileno]["size"], "big")
+                          # eprint("received", length, "bytes")
+                          connections[fileno]["length"] = length
+                          connections[fileno]["remaining_length"] = length
+                          if length > 100:
+                            eprint("extremely long message {} out of sync".format(connections[fileno]["size"]))
+                            connections[fileno]["size"] = bytes()
+                            connections[fileno]["phase"] = "wait"
+                            connections[fileno]["remaining_size"] = 8
+                            connections[fileno]["connection"].close()
+                            # eprint("{} fileno".format(fileno))
+                            # e.unregister(fileno)
+                            eprint(connections[fileno]["messages"])
+                            del connections[fileno]
+                            continue
+                            # sys.exit(1)
+                          else:
+                            connections[fileno]["size"] = bytes()
+                            connections[fileno]["current_size"] = bytes()
+                            connections[fileno]["phase"] = "message"
+                            connections[fileno]["remaining_size"] = 0
     
                         continue
                     if connections[fileno]["phase"] == "message":
                       # eprint(length)
                       # eprint("length of message is ", length)
                       connections[fileno]["current_message"] = connections[fileno]["connection"].recv(connections[fileno]["remaining_length"])
+                      connections[fileno]["messages"].append(connections[fileno]["current_message"])
                       connections[fileno]["remaining_length"] = connections[fileno]["remaining_length"] - len(connections[fileno]["current_message"])
                       connections[fileno]["message"] = connections[fileno]["message"] + connections[fileno]["current_message"]
                       
-
-                      if len(connections[fileno]["message"]) == connections[fileno]["length"]:
+                      eprint("received message {}".format(connections[fileno]["message"]))
+                      if len(connections[fileno]["message"]) == connections[fileno]["length"] and connections[fileno]["remaining_size"] == 0:
                         
+                        connections[fileno]["remaining_size"] = 8
                         connections[fileno]["phase"] = "wait"
                         data = connections[fileno]["message"] 
                         # eprint("received a full message {}".format(data.decode('utf8')))
@@ -266,7 +302,7 @@ class Server(Thread):
                             splitted = data.split(" ")
                             # eprint(splitted)
                             if splitted[0] == "server" and len(splitted) == 2:
-                              eprint("received server name {}".format(splitted[1]))
+                              # eprint("received server name {}".format(splitted[1]))
                               if splitted[1] == "clientonly":
                                 server_index = -1
                                 connections[fileno]["server_index"] = server_index
@@ -276,9 +312,12 @@ class Server(Thread):
                                 connections[fileno]["server_index"] = server_index
                                 connections[fileno]["initialized"] = True
                             if splitted[0] == "get" and len(splitted) == 3:
-                              server_value = self.database.getvalue(splitted[1])
-                              eprint("server value", server_value)
-                              eprint("length of items", len(self.database.database[splitted[1]]["value"]))
+                              server_value = self.database.getlatest(splitted[1])
+                              eprint("Server value is {}".format(server_value))
+                              server_value_bytes = int.to_bytes(server_value, length=8, byteorder="big")
+                              connections[fileno]["connection"].send(server_value_bytes)
+                              # eprint("server value", server_value)
+                              # eprint("length of items", len(self.database.database[splitted[1]]["value"]))
                               # eprint("second to last value", self.database.database[splitted[1]]["value"][-2])
                               # for sp in self.database.database[splitted[1]]["value"]:
                               #   if sp.kind == "sync" and sp.value == server_value.value:
@@ -307,12 +346,13 @@ class Server(Thread):
                               self.database.persist(splitted)
                             elif "initialized" in connections[fileno] and splitted[0] == "set" and len(splitted) == 5:
                               val = self.database.persist(splitted)
+                              eprint("persisted {}".format(val.value))
                               my_server_index = connections[fileno]["server_index"]
                               for their_fileno, client in connections.items():
-                                server_index = client["server_index"]
-                                if server_index == -1:
-                                  continue 
                                 if "initialized" in client:
+                                  server_index = client["server_index"]
+                                  if server_index == -1:
+                                    continue 
                                   connection_to_client = self.clients[server_index]
                                   sender = connection_to_client.sender
                                   if not connection_to_client.me:
@@ -320,9 +360,11 @@ class Server(Thread):
                                     sender.queue.put((synced, val.time))
                                 
                         continue
-
+              except Exception as er:
+                eprint("Server error {}".format(er))
         e.unregister(s.fileno())
         e.close()
+        eprint("SERVER SHUT DOWN")
 
 class Client(Thread):
 
@@ -383,7 +425,6 @@ class ClientSender(Thread):
      self.current_message = None
   def run(self):
     while self.running:
-      try:
         item = self.queue.get()
         if len(item) == 1:
           timev = time.time()
@@ -394,22 +435,24 @@ class ClientSender(Thread):
         # eprint(message)
         e = select.epoll()
         e.register(self.client.s.fileno(), select.EPOLLOUT)
-        running = True
+        sending = True
         queue = [message, int.to_bytes(len(message), length=8, byteorder="big")]
-        while running:
+        while sending:
             events = e.poll()
             for fileno, event in events:
                 if event & select.EPOLLOUT:
-                  message_sent = self.client.s.send(queue.pop())
-                  if len(queue) == 0:
+                  try:
+                    message_sent = self.client.s.send(queue.pop())
+                    if len(queue) == 0:
+                      e.unregister(self.client.s.fileno())
+                      self.queue.task_done() 
+                      sending = False
+                  except Exception as er:
+                    eprint(er)
                     e.unregister(self.client.s.fileno())
                     self.queue.task_done() 
-                    running = False
-      except Exception as e:
-        eprint(e)
-        import sys
-        self.running = False
-        eprint("Aborting")
+                    sending = False
+                    # self.running = False
 
 import time
 servers = [
@@ -417,12 +460,12 @@ servers = [
 ]
 clients = []
 database = Database(args.index)
-
+database.database["balance"] = {"value": []}
 server = Server(node_data[node_index], args.index, 65432 + node_index, database, clients)
 server.start()
 time.sleep(2)
 for i in range(0, len(node_data)):
-  eprint(i)
+  # eprint(i)
   port = 65432 + i
   me = False
   
@@ -453,7 +496,7 @@ for c_server in servers:
 import time
 time.sleep(3)
 import random
-eprint("###########################~")
+# eprint("###########################~")
 counter = 1
 last_time = time.time()
 increment = 1
@@ -464,22 +507,23 @@ while counter <= test_amount:
     direction = ["withdraw", "deposit"][random.randrange(0, 2)]
     # eprint(direction)
     message = "set {} balance {}".format(direction, amount)
-    client.sender.queue.put((message,)) 
+    # client.sender.queue.put((message,)) 
     counter = counter + 1
 
-client.running = False
-server.running = False
-receiver.running = False
 
 time.sleep(5)
-eprint("Total counter", counter)
-eprint("Total clients", len(clients))
-eprint("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
-  test_amount, increment, len(clients), \
-  test_amount, increment, len(clients), len(clients), \
-  len(clients) * test_amount * increment + len(clients) * test_amount * increment * len(clients)))
-eprint("Test simulation finished, getting final answers")
+#eprint("Total counter", counter)
+#eprint("Total clients", len(clients))
+#eprint("Value should be {} * {} * {} + {} * {} * {} * {}= {}".format(\
+#  test_amount, increment, len(clients), \
+#  test_amount, increment, len(clients), len(clients), \
+#  len(clients) * test_amount * increment + len(clients) * test_amount * increment * len(clients)))
+#eprint("Test simulation finished, getting final answers")
 for client in clients:
-  client.sender.queue.put(("get balance".format(counter),)) 
+  # client.sender.queue.put(("get balance".format(counter),)) 
+  pass
 
+# client.running = False
+# server.running = False
+# receiver.running = False
 # server.shutdown()
