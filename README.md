@@ -38,4 +38,4 @@ This is used by the Jepsen tests.
 
 I am working on Jepsen tests for the mesh. Currently the jepsen tests spin up 5 servers and deploy the mesh to them, then creates a connection to each server to prepare for streaming instructions.
 
-I haven't yet written code to generate read/write events. 
+The linearizability test in Jepsen fails, because this software is not linerarizable.
