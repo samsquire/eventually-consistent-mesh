@@ -36,6 +36,10 @@ This is used by the Jepsen tests.
 
 # Jepsen tests
 
-I am working on Jepsen tests for the mesh. Currently the jepsen tests spin up 5 servers and deploy the mesh to them, then creates a connection to each server to prepare for streaming instructions.
+The Jepsen tests test s for linearizability and the eventually consistent mesh fails the linearizability test.
+
+## old notes
+
+I am working on Jepsen tests for the mesh. Currently the jepsen tests spin up 5 servers in AWS and deploy the mesh to them, then creates a connection to each server to prepare for streaming instructions.
 
 The linearizability test in Jepsen fails, because this software is not linerarizable.
